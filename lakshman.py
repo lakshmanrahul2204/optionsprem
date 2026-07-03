@@ -573,6 +573,7 @@ with col_result:
 
             st.markdown(f"""
 html_content = f"""
+<html>
 <div class='result-box'>
     <div class='result-label'>Estimated Fair Premium</div>
     <div class='result-value'>Rs{fair_val:,.2f}</div>
@@ -580,6 +581,8 @@ html_content = f"""
         {diff_sym} {abs(diff):.2f} ({abs(diff_pct):.1f}%) from current ₹{opt_p:.2f}
     </div>
 </div>
+</html>
+
 """, unsafe_allow_html=True
 
             st.markdown("<div class='section-header' style='margin-top:1.4rem;'>"
