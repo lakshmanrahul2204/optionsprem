@@ -315,20 +315,29 @@ st.markdown("""
 if not st.session_state.authenticated:
     st.markdown("<div class='login-card'>", unsafe_allow_html=True)
     st.markdown("#### 🔐 Connect to Groww")
-    st.caption("Enter your Groww API Auth Token.")
+    st.caption("Enter your Groww API credentials. Get them from [groww.in/trade-api/api-keys](https://groww.in/trade-api/api-keys).")
 
-    auth_token_input = st.text_input("API Auth Token", type="password",
-                                 placeholder="Your Groww API Auth Token",
-                                 help="Access token generated using your API Key and Secret")
+    lc1, lc2 = st.columns(2)
+    with lc1:
+        api_key = st.text_input("API Key", type="password",
+                                 placeholder="Your Groww API Key",
+                                 help="From Groww Cloud API Keys page")
+    with lc2:
+        api_secret = st.text_input("API Secret", type="password",
+                                    placeholder="Your Groww API Secret",
+                                    help="Secret shown alongside the API Key")
 
     if st.button("Connect to Groww →", use_container_width=True):
-        if not auth_token_input:
-            st.error("Please enter your API Auth Token.")
+        if not api_key or not api_secret:
+            st.error("Please enter both API Key and API Secret.")
         else:
             with st.spinner("Authenticating…"):
                 try:
-                    # Initializing directly using the token provided per documentation
-                    st.session_state.groww         = GrowwAPI(auth_token_input)
+                    access_token = GrowwAPI.get_access_token(
+                        api_key=api_key,
+                        secret=api_secret,
+                    )
+                    st.session_state.groww         = GrowwAPI(access_token)
                     st.session_state.authenticated = True
                     st.rerun()
                 except Exception as e:
