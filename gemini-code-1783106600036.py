@@ -346,4 +346,4 @@ if not st.session_state.authenticated:
 - Select underlying, expiry, strike, and option type
 - Click *Fetch Greeks & LTP*
 
-**Step 3 – Calculate Fair Value**
+**Step 3 – Calculate Fair Value**""")
