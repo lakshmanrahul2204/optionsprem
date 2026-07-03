@@ -580,7 +580,7 @@ html_content = f"""
         {diff_sym} {abs(diff):.2f} ({abs(diff_pct):.1f}%) from current ₹{opt_p:.2f}
     </div>
 </div>
-""", unsafe_allow_html=True)
+""", unsafe_allow_html=True
 
             st.markdown("<div class='section-header' style='margin-top:1.4rem;'>"
                         "Taylor Series Breakdown</div>", unsafe_allow_html=True)
