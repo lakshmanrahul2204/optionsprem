@@ -574,7 +574,7 @@ with col_result:
             st.markdown(f"""
 <div class='result-box'>
     <div class='result-label'>Estimated Fair Premium</div>
-    <div class='result-value'>₹{fair_val:,.2f}</div>
+    <div class='result-value'>Rs{fair_val:,.2f}</div>
     <div class='result-diff' style='color:{"#66bb6a" if diff>=0 else "#ef5350"}'>
         {diff_sym} {abs(diff):.2f} ({abs(diff_pct):.1f}%) from current ₹{opt_p:.2f}
     </div>
