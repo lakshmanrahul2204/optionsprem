@@ -356,6 +356,7 @@ if not st.session_state.authenticated:
 - Click *Fetch Greeks & LTP*
 
 **Step 3 – Calculate Fair Value**""")
+#This is causing error so removing it
 #"P(S*) ≈ P(S) + Δ·ΔS + ½·Γ·ΔS² + θ·Δt + ν·Δσ"
 """)
     st.stop()
