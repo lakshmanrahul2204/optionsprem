@@ -356,7 +356,6 @@ if not st.session_state.authenticated:
 - Click *Fetch Greeks & LTP*
 
 **Step 3 – Calculate Fair Value**""")
-<<<<<<< HEAD
 P(S*) ≈ P(S) + Δ·ΔS + ½·Γ·ΔS² + θ·Δt + ν·Δσ
 """)
     st.stop()
@@ -650,5 +649,3 @@ $$P(S^*) \approx P(S) + \Delta \cdot \Delta S + \frac{1}{2} \Gamma \cdot (\Delta
 | Θ | Theta | Time decay (per day) |
 | ν | Vega  | Sensitivity to IV change |
                 """)
-=======
->>>>>>> 891de77477a4479efe3e8f36298c66a41d25e3d1
