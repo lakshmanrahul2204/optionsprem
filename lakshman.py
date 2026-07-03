@@ -356,7 +356,7 @@ if not st.session_state.authenticated:
 - Click *Fetch Greeks & LTP*
 
 **Step 3 – Calculate Fair Value**""")
-P(S*) ≈ P(S) + Δ·ΔS + ½·Γ·ΔS² + θ·Δt + ν·Δσ
+"P(S*) ≈ P(S) + Δ·ΔS + ½·Γ·ΔS² + θ·Δt + ν·Δσ"
 """)
     st.stop()
 
