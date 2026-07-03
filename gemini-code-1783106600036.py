@@ -315,20 +315,29 @@ st.markdown("""
 if not st.session_state.authenticated:
     st.markdown("<div class='login-card'>", unsafe_allow_html=True)
     st.markdown("#### 🔐 Connect to Groww")
-    st.caption("Enter your Groww API Auth Token.")
+    st.caption("Enter your Groww API credentials. Get them from [groww.in/trade-api/api-keys](https://groww.in/trade-api/api-keys).")
 
-    auth_token_input = st.text_input("API Auth Token", type="password",
-                                 placeholder="Your Groww API Auth Token",
-                                 help="Access token generated using your API Key and Secret")
+    lc1, lc2 = st.columns(2)
+    with lc1:
+        api_key = st.text_input("API Key", type="password",
+                                 placeholder="Your Groww API Key",
+                                 help="From Groww Cloud API Keys page")
+    with lc2:
+        api_secret = st.text_input("API Secret", type="password",
+                                    placeholder="Your Groww API Secret",
+                                    help="Secret shown alongside the API Key")
 
     if st.button("Connect to Groww →", use_container_width=True):
-        if not auth_token_input:
-            st.error("Please enter your API Auth Token.")
+        if not api_key or not api_secret:
+            st.error("Please enter both API Key and API Secret.")
         else:
             with st.spinner("Authenticating…"):
                 try:
-                    # Initializing directly using the token provided per documentation
-                    st.session_state.groww         = GrowwAPI(auth_token_input)
+                    access_token = GrowwAPI.get_access_token(
+                        api_key=api_key,
+                        secret=api_secret,
+                    )
+                    st.session_state.groww         = GrowwAPI(access_token)
                     st.session_state.authenticated = True
                     st.rerun()
                 except Exception as e:
@@ -346,4 +355,297 @@ if not st.session_state.authenticated:
 - Select underlying, expiry, strike, and option type
 - Click *Fetch Greeks & LTP*
 
-**Step 3 – Calculate Fair Value**
+**Step 3 – Calculate Fair Value**""")
+P(S*) ≈ P(S) + Δ·ΔS + ½·Γ·ΔS² + θ·Δt + ν·Δσ
+""")
+    st.stop()
+
+else:
+    # Connected status bar
+    st.markdown(
+        "<div class='login-card-connected'>"
+        "<div class='connected-badge'>● Connected to Groww</div>"
+        "</div>",
+        unsafe_allow_html=True
+    )
+    if st.button("Disconnect", type="secondary"):
+        for key in ["groww", "authenticated", "greeks_data", "spot_ltp",
+                    "option_ltp", "trading_symbol", "underlying"]:
+            st.session_state[key] = None
+        st.session_state.authenticated = False
+        st.rerun()
+
+# ─── Main UI ─────────────────────────────────────────────────────────────────
+groww = st.session_state.groww
+
+col_inp, col_result = st.columns([1, 1.3], gap="large")
+
+with col_inp:
+    st.markdown("<div class='section-header'>Instrument Selection</div>",
+                unsafe_allow_html=True)
+
+    underlying = st.selectbox(
+        "Underlying",
+        ["NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "SENSEX", "BANKEX"],
+    )
+
+    expiry_date = st.date_input(
+        "Expiry Date",
+        value=date.today() + timedelta(days=7),
+        min_value=date.today(),
+    )
+
+    strike_price = st.number_input(
+        "Strike Price", min_value=1, step=50, value=24000
+    )
+
+    option_type = st.selectbox("Option Type", ["CE", "PUT → PE"],
+                                index=0)
+    opt_suffix = "CE" if "CE" in option_type else "PE"
+
+    # Format Monthly Character Maps for System Trading Symbols
+    month_mapping = {
+        1: "1", 2: "2", 3: "3", 4: "4", 5: "5", 6: "6",
+        7: "7", 8: "8", 9: "9", 10: "O", 11: "N", 12: "D"
+    }
+    m_char = month_mapping[expiry_date.month]
+    expiry_str = expiry_date.strftime("%y") + m_char + expiry_date.strftime("%d")
+    trading_symbol = f"{underlying}{expiry_str}{int(strike_price)}{opt_suffix}"
+    
+    st.markdown(
+        f"<div style='font-family:JetBrains Mono,monospace;font-size:0.8rem;"
+        f"color:#7986cb;margin-top:0.3rem;'>Symbol: {trading_symbol}</div>",
+        unsafe_allow_html=True,
+    )
+
+    exchange = "BSE" if underlying in ["SENSEX", "BANKEX"] else "NSE"
+    exchange_const = groww.EXCHANGE_BSE if exchange == "BSE" else groww.EXCHANGE_NSE
+
+    fetch_clicked = st.button("📡 Fetch Greeks & LTP", use_container_width=True)
+
+    if fetch_clicked:
+        with st.spinner("Fetching data from Groww…"):
+            try:
+                # ── Step 1: Use Updated get_greeks API Signature ──────────
+                greeks_resp = groww.get_greeks(
+                    exchange=exchange_const,
+                    underlying=underlying,
+                    trading_symbol=trading_symbol,
+                    expiry=expiry_date.strftime("%Y-%m-%d")
+                )
+
+                # ── Step 2: Use Updated get_ltp API Signature ─────────────
+                cash_symbol = f"{exchange}_{underlying}"
+                ltp_resp = groww.get_ltp(
+                    segment=groww.SEGMENT_CASH,
+                    exchange_trading_symbols=cash_symbol
+                )
+
+                # Extracting Option Specific Data
+                st.session_state.spot_ltp = float(ltp_resp.get(cash_symbol, {}).get("last_price", 0) or 0)
+                st.session_state.option_ltp = float(greeks_resp.get("ltp", 0) or 0)
+
+                # Map extracted greeks response values to session state
+                st.session_state.greeks_data = {
+                    "delta":              greeks_resp.get("delta", 0),
+                    "gamma":              greeks_resp.get("gamma", 0),
+                    "theta":              greeks_resp.get("theta", 0),
+                    "vega":               greeks_resp.get("vega",  0),
+                    "rho":                greeks_resp.get("rho",   0),
+                    "implied_volatility": greeks_resp.get("iv",    0),
+                }
+
+                st.session_state.trading_symbol = trading_symbol
+                st.session_state.underlying     = underlying
+                st.success("✅ Data fetched successfully!")
+
+            except Exception as e:
+                st.error(f"Error: {e}")
+                st.code(traceback.format_exc(), language="python")
+
+    # ── Greeks Display ──────────────────────────────────────────────────────
+    if st.session_state.greeks_data:
+        gd = st.session_state.greeks_data
+
+        st.markdown("<div class='section-header'>Live Greeks</div>",
+                    unsafe_allow_html=True)
+
+        delta = float(gd.get("delta", 0) or 0)
+        gamma = float(gd.get("gamma", 0) or 0)
+        theta = float(gd.get("theta", 0) or 0)
+        vega  = float(gd.get("vega",  0) or 0)
+        iv    = float(gd.get("implied_volatility", 0) or 0)
+        spot  = float(st.session_state.spot_ltp or 0)
+        opt_p = float(st.session_state.option_ltp or 0)
+
+        g1, g2, g3 = st.columns(3)
+        with g1:
+            st.markdown(
+                f"<div class='metric-card'><div class='metric-label'>Delta</div>"
+                f"<div class='metric-value'>{delta:.4f}</div></div>",
+                unsafe_allow_html=True)
+        with g2:
+            st.markdown(
+                f"<div class='metric-card'><div class='metric-label'>Gamma</div>"
+                f"<div class='metric-value'>{gamma:.6f}</div></div>",
+                unsafe_allow_html=True)
+        with g3:
+            st.markdown(
+                f"<div class='metric-card'><div class='metric-label'>Theta / day</div>"
+                f"<div class='metric-value negative'>{theta:.4f}</div></div>",
+                unsafe_allow_html=True)
+
+        g4, g5, g6 = st.columns(3)
+        with g4:
+            st.markdown(
+                f"<div class='metric-card'><div class='metric-label'>Vega</div>"
+                f"<div class='metric-value'>{vega:.4f}</div></div>",
+                unsafe_allow_html=True)
+        with g5:
+            st.markdown(
+                f"<div class='metric-card'><div class='metric-label'>IV (%)</div>"
+                f"<div class='metric-value'>{iv:.2f}%</div></div>",
+                unsafe_allow_html=True)
+        with g6:
+            st.markdown(
+                f"<div class='metric-card'><div class='metric-label'>Option LTP</div>"
+                f"<div class='metric-value'>₹{opt_p:.2f}</div></div>",
+                unsafe_allow_html=True)
+
+        st.markdown(
+            f"<div style='margin-top:0.8rem;font-family:JetBrains Mono,monospace;"
+            f"font-size:0.8rem;color:#546e7a;'>Spot ({underlying}): "
+            f"<span style='color:#e8eaf6;font-weight:600;'>₹{spot:,.2f}</span></div>",
+            unsafe_allow_html=True)
+
+# ─── Right Column: Fair Value Calculator ─────────────────────────────────────
+with col_result:
+    st.markdown("<div class='section-header'>Taylor Series Fair Value</div>",
+                unsafe_allow_html=True)
+
+    if not st.session_state.greeks_data:
+        st.info("Fetch Greeks first using the panel on the left.")
+    else:
+        gd    = st.session_state.greeks_data
+        delta = float(gd.get("delta", 0) or 0)
+        gamma = float(gd.get("gamma", 0) or 0)
+        theta = float(gd.get("theta", 0) or 0)
+        vega  = float(gd.get("vega",  0) or 0)
+        spot  = float(st.session_state.spot_ltp or 0)
+        opt_p = float(st.session_state.option_ltp or 0)
+
+        target_spot = st.number_input(
+            "🎯 Target Spot Price",
+            value=float(spot),
+            step=50.0,
+            help="Enter the spot price scenario you want to evaluate.",
+        )
+
+        c1, c2 = st.columns(2)
+        with c1:
+            days_fwd = st.number_input(
+                "Days Forward (Θ decay)",
+                min_value=0, max_value=90, value=0, step=1,
+                help="Number of calendar days ahead (for theta decay).",
+            )
+        with c2:
+            iv_change = st.number_input(
+                "IV Change (%)",
+                min_value=-50.0, max_value=50.0, value=0.0, step=0.5,
+                help="Expected absolute change in implied volatility in %.",
+            )
+
+        calc_clicked = st.button("⚡ Calculate Fair Value", use_container_width=True)
+
+        if calc_clicked or True:
+            fair_val, breakdown = compute_fair_value(
+                current_premium=opt_p,
+                delta=delta, gamma=gamma, theta=theta, vega=vega,
+                current_spot=spot, target_spot=target_spot,
+                days_forward=days_fwd, iv_change=iv_change,
+            )
+
+            diff     = fair_val - opt_p
+            diff_pct = (diff / opt_p * 100) if opt_p else 0
+            diff_cls = "positive" if diff >= 0 else "negative"
+            diff_sym = "▲" if diff >= 0 else "▼"
+
+            st.markdown(f"""
+<div class='result-box'>
+    <div class='result-label'>Estimated Fair Premium</div>
+    <div class='result-value'>₹{fair_val:,.2f}</div>
+    <div class='result-diff' style='color:{"#66bb6a" if diff>=0 else "#ef5350"}'>
+        {diff_sym} {abs(diff):.2f} ({abs(diff_pct):.1f}%) from current ₹{opt_p:.2f}
+    </div>
+</div>
+""", unsafe_allow_html=True)
+
+            st.markdown("<div class='section-header' style='margin-top:1.4rem;'>"
+                        "Taylor Series Breakdown</div>", unsafe_allow_html=True)
+
+            st.markdown(f"""
+<div class='taylor-box'>
+    <div class='taylor-row'>
+        <span>Current Premium P(S)</span>
+        <span class='contrib'>₹{opt_p:.4f}</span>
+    </div>""", unsafe_allow_html=True)
+
+            for term_name, val in breakdown.items():
+                color = "#66bb6a" if val >= 0 else "#ef5350"
+                st.markdown(
+                    f"<div class='taylor-row'>"
+                    f"<span class='term'>{term_name}</span>"
+                    f"<span class='contrib' style='color:{color};'>"
+                    f"{'+'if val>=0 else ''}₹{val:.4f}</span></div>",
+                    unsafe_allow_html=True)
+
+            st.markdown(
+                f"<div class='taylor-total'>"
+                f"<span>Fair Value P(S*)</span>"
+                f"<span>₹{fair_val:.4f}</span>"
+                f"</div></div>",
+                unsafe_allow_html=True)
+
+            # ── Interpretation Summary ─────────────────────────────────────────
+            st.markdown("<div class='section-header'>Signal</div>",
+                        unsafe_allow_html=True)
+
+            dS = target_spot - spot
+            if abs(dS) < 1:
+                signal_text = "Spot unchanged. Only Theta & Vega effects dominate."
+                signal_icon = "⏸"
+                signal_color = "#ffa726"
+            elif fair_val > opt_p * 1.05:
+                signal_text = (f"At ₹{target_spot:,.0f} spot, the option may be worth "
+                               f"~{diff_pct:.1f}% more. Bullish scenario for this leg.")
+                signal_icon = "🚀"
+                signal_color = "#66bb6a"
+            elif fair_val < opt_p * 0.95:
+                signal_text = (f"At ₹{target_spot:,.0f} spot, the option loses "
+                               f"~{abs(diff_pct):.1f}%. Adverse move for this position.")
+                signal_icon = "⚠️"
+                signal_color = "#ef5350"
+            else:
+                signal_text = "Marginal change. Premium relatively stable at this target."
+                signal_icon = "↔️"
+                signal_color = "#90a4ae"
+
+            st.markdown(
+                f"<div style='background:#0d1224;border:1px solid #1e2a4a;"
+                f"border-left:3px solid {signal_color};border-radius:8px;"
+                f"padding:0.9rem 1.2rem;font-size:0.9rem;'>"
+                f"{signal_icon} {signal_text}</div>",
+                unsafe_allow_html=True)
+
+            with st.expander("📐 Formula & Assumptions"):
+                st.markdown(r"""
+**Taylor Series Expansion (2nd order):**
+$$P(S^*) \approx P(S) + \Delta \cdot \Delta S + \frac{1}{2} \Gamma \cdot (\Delta S)^2 + \Theta \cdot \Delta t + \nu \cdot \Delta\sigma$$
+
+| Symbol | Greek | Meaning |
+|--------|-------|---------|
+| Δ | Delta | Rate of change w.r.t. spot |
+| Γ | Gamma | Convexity / 2nd-order spot |
+| Θ | Theta | Time decay (per day) |
+| ν | Vega  | Sensitivity to IV change |
+                """)
