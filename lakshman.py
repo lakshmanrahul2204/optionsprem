@@ -572,6 +572,7 @@ with col_result:
             diff_sym = "▲" if diff >= 0 else "▼"
 
             st.markdown(f"""
+html_content = f"""
 <div class='result-box'>
     <div class='result-label'>Estimated Fair Premium</div>
     <div class='result-value'>Rs{fair_val:,.2f}</div>
