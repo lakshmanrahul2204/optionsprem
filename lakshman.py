@@ -1,5 +1,4 @@
 import streamlit as st
-import pyotp
 import pandas as pd
 import numpy as np
 import traceback
@@ -196,7 +195,7 @@ def build_trading_symbol(underlying: str, expiry: date,
     return f"{underlying}{yy}{m}{dd}{int(strike)}{opt_type}"
 
 # ─── Session State ────────────────────────────────────────────────────────────
-for key in ["groww", "api_key", "totp_secret",
+for key in ["groww", "api_key",
             "greeks_data", "spot_ltp", "option_ltp", "underlying"]:
     if key not in st.session_state:
         st.session_state[key] = None
@@ -244,31 +243,24 @@ if not st.session_state.authenticated:
 
     lc1, lc2 = st.columns(2)
     with lc1:
-        api_key     = st.text_input("API Key",     type="password",
-                                     placeholder="Groww API Key")
-        totp_secret = st.text_input("TOTP Secret", type="password",
-                                     placeholder="Base-32 TOTP secret",
-                                     help="The secret shown when you set up TOTP on the "
-                                          "Groww Cloud API Keys page — NOT the 6-digit code.")
+        api_key    = st.text_input("API Key",    type="password",
+                                    placeholder="Groww API Key")
     with lc2:
-        api_secret  = st.text_input("API Secret",  type="password",
-                                     placeholder="Groww API Secret")
+        api_secret = st.text_input("API Secret", type="password",
+                                    placeholder="Groww API Secret")
 
     if st.button("Connect to Groww →", use_container_width=True):
-        if not all([api_key, api_secret, totp_secret]):
-            st.error("Please fill in all three fields.")
+        if not all([api_key, api_secret]):
+            st.error("Please enter both API Key and API Secret.")
         else:
             with st.spinner("Authenticating with Groww…"):
                 try:
-                    totp_code    = pyotp.TOTP(totp_secret).now()
                     access_token = GrowwAPI.get_access_token(
                         api_key=api_key,
                         secret=api_secret,
-                        totp=totp_code,
                     )
                     st.session_state.groww         = GrowwAPI(access_token)
                     st.session_state.api_key       = api_key
-                    st.session_state.totp_secret   = totp_secret
                     st.session_state.authenticated = True
                     st.rerun()
                 except Exception as e:
@@ -281,14 +273,7 @@ if not st.session_state.authenticated:
 **API Key & Secret**
 1. Go to [groww.in/trade-api/api-keys](https://groww.in/trade-api/api-keys)
 2. Click **Generate API Key**, give it a name, and confirm
-3. Copy the **API Key** and **API Secret** shown
-
-**TOTP Secret**
-1. On the same API Keys page, click the dropdown → **Generate TOTP Token**
-2. Scan the QR with your authenticator app
-3. Also copy the **text secret** (base-32 string) shown below the QR — paste that here
-
-> ⚠️ The TOTP Secret is shown only once. Save it securely.
+3. Copy the **API Key** and **API Secret** shown on the same page
         """)
     st.stop()
 
@@ -304,7 +289,7 @@ else:
         )
     with col_disc:
         if st.button("Disconnect"):
-            for key in ["groww", "api_key", "totp_secret", "authenticated",
+            for key in ["groww", "api_key", "authenticated",
                         "greeks_data", "spot_ltp", "option_ltp", "underlying"]:
                 st.session_state[key] = None
             st.session_state.authenticated = False
