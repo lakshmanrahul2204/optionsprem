@@ -1,10 +1,10 @@
-# filename: app.py
 import streamlit as st
+import pyotp
 import pandas as pd
 import numpy as np
-from growwapi import GrowwAPI
 import traceback
 from datetime import date, timedelta
+from growwapi import GrowwAPI
 
 # ─── Page Config ─────────────────────────────────────────────────────────────
 st.set_page_config(
@@ -17,35 +17,24 @@ st.set_page_config(
 # ─── Custom CSS ──────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght=400;600&family=Syne:wght=400;600;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;600;800&display=swap');
 
-html, body, [class*="css"] {
-    font-family: 'Syne', sans-serif;
-}
+html, body, [class*="css"] { font-family: 'Syne', sans-serif; }
 
-/* ── Hide Streamlit's white top toolbar/header ───────────────────────────── */
-[data-testid="stHeader"] {
-    display: none !important;
-}
-
-/* Remove the gap Streamlit reserves for the hidden header */
+/* Hide Streamlit white top toolbar */
+[data-testid="stHeader"] { display: none !important; }
 .stApp > header { display: none !important; }
-.block-container {
-    padding-top: 1.5rem !important;
-}
+.block-container { padding-top: 1.5rem !important; }
 
-.stApp {
-    background: #0a0e1a;
-    color: #e8eaf6;
-}
+.stApp { background: #0a0e1a; color: #e8eaf6; }
 
-/* ── Sidebar ─────────────────────────────────────────────────────────────── */
+/* Sidebar */
 [data-testid="stSidebar"] {
     background: #0d1224 !important;
     border-right: 1px solid #1e2a4a;
 }
 
-/* Sidebar collapse/expand arrow — force white */
+/* Sidebar collapse arrow — force white */
 [data-testid="stSidebarCollapseButton"],
 [data-testid="stSidebarCollapseButton"] *,
 [data-testid="collapsedControl"],
@@ -55,253 +44,185 @@ html, body, [class*="css"] {
     stroke: #ffffff !important;
 }
 
-/* ── Top brand bar ───────────────────────────────────────────────────────── */
+/* Mobile: hide sidebar, use inline login card */
+@media (max-width: 768px) {
+    [data-testid="stSidebar"],
+    [data-testid="stSidebarCollapseButton"],
+    [data-testid="collapsedControl"] { display: none !important; }
+    .block-container { padding-left: 1rem !important; padding-right: 1rem !important; }
+}
+
+/* Brand bar */
 .brand-bar {
     background: linear-gradient(135deg, #1a237e 0%, #0d1224 100%);
-    border: 1px solid #283593;
-    border-radius: 12px;
-    padding: 1.2rem 1.8rem;
-    margin-bottom: 1.5rem;
-    display: flex;
-    align-items: center;
-    gap: 1rem;
+    border: 1px solid #283593; border-radius: 12px;
+    padding: 1.2rem 1.8rem; margin-bottom: 1.5rem;
 }
 .brand-title {
-    font-size: 1.8rem;
-    font-weight: 800;
+    font-size: 1.8rem; font-weight: 800;
     background: linear-gradient(90deg, #7986cb, #64b5f6);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
     letter-spacing: -0.5px;
 }
 .brand-sub {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 0.72rem;
-    color: #90a4ae;
-    letter-spacing: 2px;
-    text-transform: uppercase;
+    font-size: 0.72rem; color: #90a4ae;
+    letter-spacing: 2px; text-transform: uppercase;
 }
 
-/* ── Streamlit native widget labels ──────────────────────────────────────── */
+/* Login card */
+.login-card {
+    background: #0d1224; border: 1px solid #1e2a4a;
+    border-radius: 12px; padding: 1.2rem 1.5rem; margin-bottom: 1.2rem;
+}
+.login-card-connected {
+    background: #0a1a0f; border: 1px solid #1b5e20;
+    border-radius: 12px; padding: 0.8rem 1.5rem; margin-bottom: 1.2rem;
+}
+.connected-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.8rem; color: #66bb6a;
+}
+
+/* Widget labels */
 label,
 [data-testid="stWidgetLabel"] p,
 [data-testid="stWidgetLabel"] {
     color: #c5cae9 !important;
     font-family: 'Syne', sans-serif !important;
-    font-size: 0.9rem !important;
-    font-weight: 600 !important;
+    font-size: 0.9rem !important; font-weight: 600 !important;
 }
-
 [data-testid="stSidebar"] label,
-[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {
-    color: #c5cae9 !important;
-    font-weight: 600 !important;
-}
+[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p { color: #c5cae9 !important; }
+[data-testid="stSidebar"] h3 { color: #e8eaf6 !important; }
 
-[data-testid="stSidebar"] h3 {
-    color: #e8eaf6 !important;
-}
-
-/* ── Metric cards ────────────────────────────────────────────────────────── */
+/* Metric cards */
 .metric-card {
-    background: #111827;
-    border: 1px solid #1e2a4a;
-    border-radius: 10px;
-    padding: 1rem 1.2rem;
-    text-align: center;
+    background: #111827; border: 1px solid #1e2a4a;
+    border-radius: 10px; padding: 1rem 1.2rem; text-align: center;
 }
 .metric-label {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.65rem;
-    color: #90a4ae;
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-    margin-bottom: 0.3rem;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.65rem;
+    color: #90a4ae; text-transform: uppercase;
+    letter-spacing: 1.5px; margin-bottom: 0.3rem;
 }
 .metric-value {
     font-family: 'JetBrains Mono', monospace;
-    font-size: 1.4rem;
-    font-weight: 600;
-    color: #7986cb;
+    font-size: 1.4rem; font-weight: 600; color: #7986cb;
 }
 .metric-value.positive { color: #66bb6a; }
 .metric-value.negative { color: #ef5350; }
 
-/* ── Fair value result box ───────────────────────────────────────────────── */
+/* Result box */
 .result-box {
     background: linear-gradient(135deg, #1a237e22, #0d47a122);
-    border: 2px solid #3949ab;
-    border-radius: 14px;
-    padding: 2rem;
-    text-align: center;
-    margin-top: 1rem;
+    border: 2px solid #3949ab; border-radius: 14px;
+    padding: 2rem; text-align: center; margin-top: 1rem;
 }
 .result-label {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.75rem;
-    color: #7986cb;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    margin-bottom: 0.5rem;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.75rem;
+    color: #7986cb; letter-spacing: 2px; text-transform: uppercase; margin-bottom: 0.5rem;
 }
-.result-value {
-    font-size: 3rem;
-    font-weight: 800;
-    color: #e8eaf6;
-    line-height: 1;
-}
-.result-diff {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.9rem;
-    margin-top: 0.5rem;
-}
+.result-value { font-size: 3rem; font-weight: 800; color: #e8eaf6; line-height: 1; }
+.result-diff  { font-family: 'JetBrains Mono', monospace; font-size: 0.9rem; margin-top: 0.5rem; }
 
-/* ── Taylor terms ────────────────────────────────────────────────────────── */
+/* Taylor box */
 .taylor-box {
-    background: #0d1224;
-    border: 1px solid #1e2a4a;
-    border-radius: 10px;
-    padding: 1.2rem;
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.8rem;
+    background: #0d1224; border: 1px solid #1e2a4a;
+    border-radius: 10px; padding: 1.2rem;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.8rem;
 }
 .taylor-row {
-    display: flex;
-    justify-content: space-between;
-    padding: 0.3rem 0;
-    border-bottom: 1px solid #1e2a4a11;
-    color: #90a4ae;
+    display: flex; justify-content: space-between;
+    padding: 0.3rem 0; border-bottom: 1px solid #1e2a4a22; color: #90a4ae;
 }
-.taylor-row .term { color: #7986cb; }
+.taylor-row .term   { color: #7986cb; }
 .taylor-row .contrib { font-weight: 600; }
 .taylor-total {
-    display: flex;
-    justify-content: space-between;
-    padding: 0.5rem 0 0;
-    border-top: 1px solid #3949ab;
-    color: #e8eaf6;
-    font-weight: 600;
+    display: flex; justify-content: space-between;
+    padding: 0.5rem 0 0; border-top: 1px solid #3949ab;
+    color: #e8eaf6; font-weight: 600;
 }
 
-/* ── Buttons ─────────────────────────────────────────────────────────────── */
+/* Buttons */
 .stButton > button {
     background: linear-gradient(135deg, #3949ab, #1a237e) !important;
-    color: white !important;
-    border: none !important;
-    border-radius: 8px !important;
-    font-family: 'Syne', sans-serif !important;
-    font-weight: 600 !important;
-    letter-spacing: 0.5px !important;
-    padding: 0.5rem 1.5rem !important;
+    color: white !important; border: none !important; border-radius: 8px !important;
+    font-family: 'Syne', sans-serif !important; font-weight: 600 !important;
+    letter-spacing: 0.5px !important; padding: 0.5rem 1.5rem !important;
     transition: all 0.2s !important;
 }
-.stButton > button:hover {
-    opacity: 0.85 !important;
-    transform: translateY(-1px) !important;
-}
+.stButton > button:hover { opacity: 0.85 !important; transform: translateY(-1px) !important; }
 
-/* ── Inputs ──────────────────────────────────────────────────────────────── */
+/* Inputs */
 .stTextInput input, .stNumberInput input, .stSelectbox select {
-    background: #111827 !important;
-    border: 1px solid #1e2a4a !important;
-    color: #e8eaf6 !important;
-    border-radius: 8px !important;
+    background: #111827 !important; border: 1px solid #1e2a4a !important;
+    color: #e8eaf6 !important; border-radius: 8px !important;
     font-family: 'JetBrains Mono', monospace !important;
 }
+.stAlert { border-radius: 10px !important; }
 
-/* ── Info / warning boxes ────────────────────────────────────────────────── */
-.stAlert {
-    border-radius: 10px !important;
-}
-
-/* ── Mobile: hide sidebar entirely, we use inline login card ────────────── */
-@media (max-width: 768px) {
-    [data-testid="stSidebar"],
-    [data-testid="stSidebarCollapseButton"],
-    [data-testid="collapsedControl"] {
-        display: none !important;
-    }
-    .block-container {
-        padding-left: 1rem !important;
-        padding-right: 1rem !important;
-    }
-}
-
-/* ── Login card (inline, shown on all screen sizes) ──────────────────────── */
-.login-card {
-    background: #0d1224;
-    border: 1px solid #1e2a4a;
-    border-radius: 12px;
-    padding: 1.2rem 1.5rem;
-    margin-bottom: 1.2rem;
-}
-.login-card-connected {
-    background: #0a1a0f;
-    border: 1px solid #1b5e20;
-    border-radius: 12px;
-    padding: 0.8rem 1.5rem;
-    margin-bottom: 1.2rem;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-}
-.connected-badge {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.8rem;
-    color: #66bb6a;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-}
-
+/* Section headers */
 .section-header {
-    font-family: 'JetBrains Mono', monospace;
-    font-size: 0.65rem;
-    color: #90a4ae;
-    letter-spacing: 2px;
-    text-transform: uppercase;
-    border-bottom: 1px solid #1e2a4a;
-    padding-bottom: 0.4rem;
-    margin: 1.2rem 0 0.8rem;
+    font-family: 'JetBrains Mono', monospace; font-size: 0.65rem;
+    color: #90a4ae; letter-spacing: 2px; text-transform: uppercase;
+    border-bottom: 1px solid #1e2a4a; padding-bottom: 0.4rem; margin: 1.2rem 0 0.8rem;
 }
 </style>
 """, unsafe_allow_html=True)
 
+# ─── Constants ────────────────────────────────────────────────────────────────
+UNDERLYINGS = ["NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "SENSEX", "BANKEX"]
 
-# ─── Session State Init ───────────────────────────────────────────────────────
-for key in ["groww", "greeks_data", "spot_ltp", "option_ltp", "trading_symbol", "underlying"]:
+def get_exchange(underlying: str):
+    """Return the SDK exchange constant for a given underlying."""
+    return "BSE" if underlying in ("SENSEX", "BANKEX") else "NSE"
+
+# Groww get_greeks() trading_symbol format: {UNDERLYING}{YY}{M_letter}{DD}{STRIKE}{TYPE}
+# Confirmed from Groww docs: NIFTY25O1425100CE → Oct 14 2025
+# Month uses first letter of month name. Ambiguous months (J, A, M) are still
+# unique per Groww's own examples so we follow the same mapping.
+_MONTH_LETTER = {
+    1:"J", 2:"F", 3:"M", 4:"A", 5:"M", 6:"J",
+    7:"J", 8:"A", 9:"S", 10:"O", 11:"N", 12:"D"
+}
+
+def build_trading_symbol(underlying: str, expiry: date,
+                          strike: int, opt_type: str) -> str:
+    """Build the Groww options trading symbol e.g. NIFTY25O1425100CE"""
+    yy = expiry.strftime("%y")          # "25"
+    m  = _MONTH_LETTER[expiry.month]    # "O" for October
+    dd = expiry.strftime("%d")          # "14"
+    return f"{underlying}{yy}{m}{dd}{int(strike)}{opt_type}"
+
+# ─── Session State ────────────────────────────────────────────────────────────
+for key in ["groww", "api_key", "totp_secret",
+            "greeks_data", "spot_ltp", "option_ltp", "underlying"]:
     if key not in st.session_state:
         st.session_state[key] = None
 if "authenticated" not in st.session_state:
     st.session_state.authenticated = False
 
-# ─── Taylor Series Fair Value ────────────────────────────────────────────────
+# ─── Taylor Series ────────────────────────────────────────────────────────────
 def compute_fair_value(current_premium, delta, gamma, theta, vega,
-                        current_spot, target_spot, days_forward=0, iv_change=0.0):
-    """
-    Taylor Series expansion of option price around current spot:
-    P(S*) ≈ P(S) + Δ·ΔS + ½·Γ·ΔS² + θ·Δt + ν·Δσ
-    """
-    dS   = target_spot - current_spot
-    dt   = days_forward / 365.0
-    d_iv = iv_change / 100.0
-
+                       current_spot, target_spot, days_forward=0, iv_change=0.0):
+    """P(S*) ≈ P(S) + Δ·ΔS + ½·Γ·ΔS² + θ·Δt + ν·Δσ"""
+    dS         = target_spot - current_spot
+    d_iv       = iv_change / 100.0
     delta_term = delta * dS
     gamma_term = 0.5 * gamma * dS ** 2
-    theta_term = theta * days_forward
+    theta_term = theta * days_forward   # theta is per-day from Groww API
     vega_term  = vega * d_iv
-
-    fair = current_premium + delta_term + gamma_term + theta_term + vega_term
-
-    breakdown = {
-        "Δ · ΔS  (Delta)":     delta_term,
-        "½Γ · ΔS²  (Gamma)":   gamma_term,
-        "θ · Δt  (Theta)":     theta_term,
-        "ν · Δσ  (Vega)":      vega_term,
+    fair       = current_premium + delta_term + gamma_term + theta_term + vega_term
+    breakdown  = {
+        "Δ · ΔS  (Delta)":   delta_term,
+        "½Γ · ΔS²  (Gamma)": gamma_term,
+        "θ · Δt  (Theta)":   theta_term,
+        "ν · Δσ  (Vega)":    vega_term,
     }
     return max(fair, 0.0), breakdown
 
-# ─── Brand Bar ───────────────────────────────────────────────────────────────
+# ─── Brand Bar ────────────────────────────────────────────────────────────────
 st.markdown("""
 <div class='brand-bar'>
     <div>
@@ -311,33 +232,43 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-# ─── Inline Login / Status Card ──────────────────────────────────────────────
+# ─── Inline Login ─────────────────────────────────────────────────────────────
 if not st.session_state.authenticated:
     st.markdown("<div class='login-card'>", unsafe_allow_html=True)
     st.markdown("#### 🔐 Connect to Groww")
-    st.caption("Enter your Groww API credentials. Get them from [groww.in/trade-api/api-keys](https://groww.in/trade-api/api-keys).")
+    st.caption(
+        "Get your API Key & Secret from "
+        "[groww.in/trade-api/api-keys](https://groww.in/trade-api/api-keys). "
+        "Set up TOTP from the same page."
+    )
 
     lc1, lc2 = st.columns(2)
     with lc1:
-        api_key = st.text_input("API Key", type="password",
-                                 placeholder="Your Groww API Key",
-                                 help="From Groww Cloud API Keys page")
+        api_key     = st.text_input("API Key",     type="password",
+                                     placeholder="Groww API Key")
+        totp_secret = st.text_input("TOTP Secret", type="password",
+                                     placeholder="Base-32 TOTP secret",
+                                     help="The secret shown when you set up TOTP on the "
+                                          "Groww Cloud API Keys page — NOT the 6-digit code.")
     with lc2:
-        api_secret = st.text_input("API Secret", type="password",
-                                    placeholder="Your Groww API Secret",
-                                    help="Secret shown alongside the API Key")
+        api_secret  = st.text_input("API Secret",  type="password",
+                                     placeholder="Groww API Secret")
 
     if st.button("Connect to Groww →", use_container_width=True):
-        if not api_key or not api_secret:
-            st.error("Please enter both API Key and API Secret.")
+        if not all([api_key, api_secret, totp_secret]):
+            st.error("Please fill in all three fields.")
         else:
-            with st.spinner("Authenticating…"):
+            with st.spinner("Authenticating with Groww…"):
                 try:
+                    totp_code    = pyotp.TOTP(totp_secret).now()
                     access_token = GrowwAPI.get_access_token(
                         api_key=api_key,
                         secret=api_secret,
+                        totp=totp_code,
                     )
                     st.session_state.groww         = GrowwAPI(access_token)
+                    st.session_state.api_key       = api_key
+                    st.session_state.totp_secret   = totp_secret
                     st.session_state.authenticated = True
                     st.rerun()
                 except Exception as e:
@@ -345,50 +276,48 @@ if not st.session_state.authenticated:
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-    with st.expander("ℹ️ How it works"):
+    with st.expander("ℹ️ How to get your credentials"):
         st.markdown("""
-**Step 1 – Authenticate**
-- Place your generated **API Auth Token** inside the interface above.
-- Click *Connect to Groww*
+**API Key & Secret**
+1. Go to [groww.in/trade-api/api-keys](https://groww.in/trade-api/api-keys)
+2. Click **Generate API Key**, give it a name, and confirm
+3. Copy the **API Key** and **API Secret** shown
 
-**Step 2 – Fetch Greeks**
-- Select underlying, expiry, strike, and option type
-- Click *Fetch Greeks & LTP*
+**TOTP Secret**
+1. On the same API Keys page, click the dropdown → **Generate TOTP Token**
+2. Scan the QR with your authenticator app
+3. Also copy the **text secret** (base-32 string) shown below the QR — paste that here
 
-**Step 3 – Calculate Fair Value**""")
-#This is causing error so removing it
-#"P(S*) ≈ P(S) + Δ·ΔS + ½·Γ·ΔS² + θ·Δt + ν·Δσ"
-""")
+> ⚠️ The TOTP Secret is shown only once. Save it securely.
+        """)
     st.stop()
 
 else:
     # Connected status bar
-    st.markdown(
-        "<div class='login-card-connected'>"
-        "<div class='connected-badge'>● Connected to Groww</div>"
-        "</div>",
-        unsafe_allow_html=True
-    )
-    if st.button("Disconnect", type="secondary"):
-        for key in ["groww", "authenticated", "greeks_data", "spot_ltp",
-                    "option_ltp", "trading_symbol", "underlying"]:
-            st.session_state[key] = None
-        st.session_state.authenticated = False
-        st.rerun()
+    col_status, col_disc = st.columns([5, 1])
+    with col_status:
+        st.markdown(
+            "<div class='login-card-connected'>"
+            "<span class='connected-badge'>● Connected to Groww</span>"
+            "</div>",
+            unsafe_allow_html=True,
+        )
+    with col_disc:
+        if st.button("Disconnect"):
+            for key in ["groww", "api_key", "totp_secret", "authenticated",
+                        "greeks_data", "spot_ltp", "option_ltp", "underlying"]:
+                st.session_state[key] = None
+            st.session_state.authenticated = False
+            st.rerun()
 
-# ─── Main UI ─────────────────────────────────────────────────────────────────
-groww = st.session_state.groww
-
+# ─── Main Layout ──────────────────────────────────────────────────────────────
 col_inp, col_result = st.columns([1, 1.3], gap="large")
 
 with col_inp:
     st.markdown("<div class='section-header'>Instrument Selection</div>",
                 unsafe_allow_html=True)
 
-    underlying = st.selectbox(
-        "Underlying",
-        ["NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "SENSEX", "BANKEX"],
-    )
+    underlying = st.selectbox("Underlying", UNDERLYINGS)
 
     expiry_date = st.date_input(
         "Expiry Date",
@@ -396,87 +325,86 @@ with col_inp:
         min_value=date.today(),
     )
 
-    strike_price = st.number_input(
-        "Strike Price", min_value=1, step=50, value=24000
+    strike_price = st.number_input("Strike Price", min_value=1, step=50, value=24000)
+
+    option_type = st.selectbox("Option Type", ["CE", "PE"])
+
+    # Show the resolved trading symbol so the user can verify it
+    trading_symbol = build_trading_symbol(
+        underlying, expiry_date, int(strike_price), option_type
     )
-
-    option_type = st.selectbox("Option Type", ["CE", "PUT → PE"],
-                                index=0)
-    opt_suffix = "CE" if "CE" in option_type else "PE"
-
-    # Format Monthly Character Maps for System Trading Symbols
-    month_mapping = {
-        1: "1", 2: "2", 3: "3", 4: "4", 5: "5", 6: "6",
-        7: "7", 8: "8", 9: "9", 10: "O", 11: "N", 12: "D"
-    }
-    m_char = month_mapping[expiry_date.month]
-    expiry_str = expiry_date.strftime("%y") + m_char + expiry_date.strftime("%d")
-    trading_symbol = f"{underlying}{expiry_str}{int(strike_price)}{opt_suffix}"
-    
     st.markdown(
         f"<div style='font-family:JetBrains Mono,monospace;font-size:0.8rem;"
         f"color:#7986cb;margin-top:0.3rem;'>Symbol: {trading_symbol}</div>",
         unsafe_allow_html=True,
     )
 
-    exchange = "BSE" if underlying in ["SENSEX", "BANKEX"] else "NSE"
-    exchange_const = groww.EXCHANGE_BSE if exchange == "BSE" else groww.EXCHANGE_NSE
-
     fetch_clicked = st.button("📡 Fetch Greeks & LTP", use_container_width=True)
 
     if fetch_clicked:
         with st.spinner("Fetching data from Groww…"):
             try:
-                # ── Step 1: Use Updated get_greeks API Signature ──────────
+                groww    = st.session_state.groww
+                exchange = get_exchange(underlying)
+
+                # ── 1. Fetch Greeks for the specific strike via get_greeks() ──
+                # Uses SDK exchange constant: groww.EXCHANGE_NSE / groww.EXCHANGE_BSE
+                exchange_const = (groww.EXCHANGE_BSE
+                                  if underlying in ("SENSEX", "BANKEX")
+                                  else groww.EXCHANGE_NSE)
+
                 greeks_resp = groww.get_greeks(
                     exchange=exchange_const,
                     underlying=underlying,
                     trading_symbol=trading_symbol,
-                    expiry=expiry_date.strftime("%Y-%m-%d")
+                    expiry=expiry_date.strftime("%Y-%m-%d"),
                 )
 
-                # ── Step 2: Use Updated get_ltp API Signature ─────────────
-                cash_symbol = f"{exchange}_{underlying}"
+                # ── 2. Fetch spot LTP and option LTP ──────────────────────
+                spot_key = f"{exchange}_{underlying}"
+                opt_key  = f"{exchange}_{trading_symbol}"
+
                 ltp_resp = groww.get_ltp(
                     segment=groww.SEGMENT_CASH,
-                    exchange_trading_symbols=cash_symbol
+                    exchange_trading_symbols=spot_key,
+                )
+                opt_ltp_resp = groww.get_ltp(
+                    segment=groww.SEGMENT_FNO,
+                    exchange_trading_symbols=opt_key,
                 )
 
-                # Extracting Option Specific Data
-                st.session_state.spot_ltp = float(ltp_resp.get(cash_symbol, {}).get("last_price", 0) or 0)
-                st.session_state.option_ltp = float(greeks_resp.get("ltp", 0) or 0)
-
-                # Map extracted greeks response values to session state
+                # ── 3. Parse and store ────────────────────────────────────
                 st.session_state.greeks_data = {
-                    "delta":              greeks_resp.get("delta", 0),
-                    "gamma":              greeks_resp.get("gamma", 0),
-                    "theta":              greeks_resp.get("theta", 0),
-                    "vega":               greeks_resp.get("vega",  0),
-                    "rho":                greeks_resp.get("rho",   0),
-                    "implied_volatility": greeks_resp.get("iv",    0),
+                    "delta":              float(greeks_resp.get("delta",              0) or 0),
+                    "gamma":              float(greeks_resp.get("gamma",              0) or 0),
+                    "theta":              float(greeks_resp.get("theta",              0) or 0),
+                    "vega":               float(greeks_resp.get("vega",               0) or 0),
+                    "implied_volatility": float(greeks_resp.get("implied_volatility", 0) or 0),
                 }
-
-                st.session_state.trading_symbol = trading_symbol
-                st.session_state.underlying     = underlying
+                st.session_state.spot_ltp   = float(
+                    (ltp_resp or {}).get(spot_key, {}).get("ltp", 0) or 0
+                )
+                st.session_state.option_ltp = float(
+                    (opt_ltp_resp or {}).get(opt_key, {}).get("ltp", 0) or 0
+                )
+                st.session_state.underlying = underlying
                 st.success("✅ Data fetched successfully!")
 
             except Exception as e:
                 st.error(f"Error: {e}")
                 st.code(traceback.format_exc(), language="python")
 
-    # ── Greeks Display ──────────────────────────────────────────────────────
+    # ── Greeks Display ────────────────────────────────────────────────────────
     if st.session_state.greeks_data:
         gd = st.session_state.greeks_data
 
         st.markdown("<div class='section-header'>Live Greeks</div>",
                     unsafe_allow_html=True)
 
-        delta = float(gd.get("delta", 0) or 0)
-        gamma = float(gd.get("gamma", 0) or 0)
-        theta = float(gd.get("theta", 0) or 0)
-        vega  = float(gd.get("vega",  0) or 0)
-        iv    = float(gd.get("implied_volatility", 0) or 0)
-        spot  = float(st.session_state.spot_ltp or 0)
+        delta = gd["delta"];  gamma = gd["gamma"]
+        theta = gd["theta"];  vega  = gd["vega"]
+        iv    = gd["implied_volatility"]  # already in % from Groww API
+        spot  = float(st.session_state.spot_ltp  or 0)
         opt_p = float(st.session_state.option_ltp or 0)
 
         g1, g2, g3 = st.columns(3)
@@ -519,7 +447,7 @@ with col_inp:
             f"<span style='color:#e8eaf6;font-weight:600;'>₹{spot:,.2f}</span></div>",
             unsafe_allow_html=True)
 
-# ─── Right Column: Fair Value Calculator ─────────────────────────────────────
+# ─── Right Column: Fair Value Calculator ──────────────────────────────────────
 with col_result:
     st.markdown("<div class='section-header'>Taylor Series Fair Value</div>",
                 unsafe_allow_html=True)
@@ -528,18 +456,14 @@ with col_result:
         st.info("Fetch Greeks first using the panel on the left.")
     else:
         gd    = st.session_state.greeks_data
-        delta = float(gd.get("delta", 0) or 0)
-        gamma = float(gd.get("gamma", 0) or 0)
-        theta = float(gd.get("theta", 0) or 0)
-        vega  = float(gd.get("vega",  0) or 0)
-        spot  = float(st.session_state.spot_ltp or 0)
+        delta = gd["delta"];  gamma = gd["gamma"]
+        theta = gd["theta"];  vega  = gd["vega"]
+        spot  = float(st.session_state.spot_ltp  or 0)
         opt_p = float(st.session_state.option_ltp or 0)
 
         target_spot = st.number_input(
-            "🎯 Target Spot Price",
-            value=float(spot),
-            step=50.0,
-            help="Enter the spot price scenario you want to evaluate.",
+            "🎯 Target Spot Price", value=float(spot), step=50.0,
+            help="Spot price scenario you want to evaluate.",
         )
 
         c1, c2 = st.columns(2)
@@ -547,110 +471,109 @@ with col_result:
             days_fwd = st.number_input(
                 "Days Forward (Θ decay)",
                 min_value=0, max_value=90, value=0, step=1,
-                help="Number of calendar days ahead (for theta decay).",
+                help="How many calendar days ahead is your exit scenario?",
             )
         with c2:
             iv_change = st.number_input(
                 "IV Change (%)",
                 min_value=-50.0, max_value=50.0, value=0.0, step=0.5,
-                help="Expected absolute change in implied volatility in %.",
+                help="Expected absolute change in IV. Leave at 0 to ignore Vega impact.",
             )
 
-        calc_clicked = st.button("⚡ Calculate Fair Value", use_container_width=True)
+        fair_val, breakdown = compute_fair_value(
+            current_premium=opt_p,
+            delta=delta, gamma=gamma, theta=theta, vega=vega,
+            current_spot=spot, target_spot=target_spot,
+            days_forward=days_fwd, iv_change=iv_change,
+        )
 
-        if calc_clicked or True:
-            fair_val, breakdown = compute_fair_value(
-                current_premium=opt_p,
-                delta=delta, gamma=gamma, theta=theta, vega=vega,
-                current_spot=spot, target_spot=target_spot,
-                days_forward=days_fwd, iv_change=iv_change,
-            )
+        diff     = fair_val - opt_p
+        diff_pct = (diff / opt_p * 100) if opt_p else 0
+        diff_sym = "▲" if diff >= 0 else "▼"
 
-            diff     = fair_val - opt_p
-            diff_pct = (diff / opt_p * 100) if opt_p else 0
-            diff_cls = "positive" if diff >= 0 else "negative"
-            diff_sym = "▲" if diff >= 0 else "▼"
-
-            st.markdown(f"""
-html_content = f"""
-<html>
+        st.markdown(f"""
 <div class='result-box'>
     <div class='result-label'>Estimated Fair Premium</div>
-    <div class='result-value'>Rs{fair_val:,.2f}</div>
+    <div class='result-value'>₹{fair_val:,.2f}</div>
     <div class='result-diff' style='color:{"#66bb6a" if diff>=0 else "#ef5350"}'>
         {diff_sym} {abs(diff):.2f} ({abs(diff_pct):.1f}%) from current ₹{opt_p:.2f}
     </div>
 </div>
-</html>
+""", unsafe_allow_html=True)
 
-""", unsafe_allow_html=True
+        st.markdown("<div class='section-header' style='margin-top:1.4rem;'>"
+                    "Taylor Series Breakdown</div>", unsafe_allow_html=True)
 
-            st.markdown("<div class='section-header' style='margin-top:1.4rem;'>"
-                        "Taylor Series Breakdown</div>", unsafe_allow_html=True)
-
-            st.markdown(f"""
+        st.markdown(f"""
 <div class='taylor-box'>
     <div class='taylor-row'>
         <span>Current Premium P(S)</span>
         <span class='contrib'>₹{opt_p:.4f}</span>
     </div>""", unsafe_allow_html=True)
 
-            for term_name, val in breakdown.items():
-                color = "#66bb6a" if val >= 0 else "#ef5350"
-                st.markdown(
-                    f"<div class='taylor-row'>"
-                    f"<span class='term'>{term_name}</span>"
-                    f"<span class='contrib' style='color:{color};'>"
-                    f"{'+'if val>=0 else ''}₹{val:.4f}</span></div>",
-                    unsafe_allow_html=True)
-
+        for term_name, val in breakdown.items():
+            color = "#66bb6a" if val >= 0 else "#ef5350"
             st.markdown(
-                f"<div class='taylor-total'>"
-                f"<span>Fair Value P(S*)</span>"
-                f"<span>₹{fair_val:.4f}</span>"
-                f"</div></div>",
+                f"<div class='taylor-row'>"
+                f"<span class='term'>{term_name}</span>"
+                f"<span class='contrib' style='color:{color};'>"
+                f"{'+'if val>=0 else ''}₹{val:.4f}</span></div>",
                 unsafe_allow_html=True)
 
-            # ── Interpretation Summary ─────────────────────────────────────────
-            st.markdown("<div class='section-header'>Signal</div>",
-                        unsafe_allow_html=True)
+        st.markdown(
+            f"<div class='taylor-total'>"
+            f"<span>Fair Value P(S*)</span>"
+            f"<span>₹{fair_val:.4f}</span>"
+            f"</div></div>",
+            unsafe_allow_html=True)
 
-            dS = target_spot - spot
-            if abs(dS) < 1:
-                signal_text = "Spot unchanged. Only Theta & Vega effects dominate."
-                signal_icon = "⏸"
-                signal_color = "#ffa726"
-            elif fair_val > opt_p * 1.05:
-                signal_text = (f"At ₹{target_spot:,.0f} spot, the option may be worth "
-                               f"~{diff_pct:.1f}% more. Bullish scenario for this leg.")
-                signal_icon = "🚀"
-                signal_color = "#66bb6a"
-            elif fair_val < opt_p * 0.95:
-                signal_text = (f"At ₹{target_spot:,.0f} spot, the option loses "
-                               f"~{abs(diff_pct):.1f}%. Adverse move for this position.")
-                signal_icon = "⚠️"
-                signal_color = "#ef5350"
-            else:
-                signal_text = "Marginal change. Premium relatively stable at this target."
-                signal_icon = "↔️"
-                signal_color = "#90a4ae"
+        # Signal
+        st.markdown("<div class='section-header'>Signal</div>", unsafe_allow_html=True)
 
-            st.markdown(
-                f"<div style='background:#0d1224;border:1px solid #1e2a4a;"
-                f"border-left:3px solid {signal_color};border-radius:8px;"
-                f"padding:0.9rem 1.2rem;font-size:0.9rem;'>"
-                f"{signal_icon} {signal_text}</div>",
-                unsafe_allow_html=True)
+        dS = target_spot - spot
+        if abs(dS) < 1:
+            signal_text  = "Spot unchanged. Only Theta & Vega effects dominate."
+            signal_icon  = "⏸"; signal_color = "#ffa726"
+        elif fair_val > opt_p * 1.05:
+            signal_text  = (f"At ₹{target_spot:,.0f} spot, the option may be worth "
+                            f"~{diff_pct:.1f}% more. Bullish scenario for this leg.")
+            signal_icon  = "🚀"; signal_color = "#66bb6a"
+        elif fair_val < opt_p * 0.95:
+            signal_text  = (f"At ₹{target_spot:,.0f} spot, the option loses "
+                            f"~{abs(diff_pct):.1f}%. Adverse move for this position.")
+            signal_icon  = "⚠️"; signal_color = "#ef5350"
+        else:
+            signal_text  = "Marginal change. Premium relatively stable at this target."
+            signal_icon  = "↔️"; signal_color = "#90a4ae"
 
-            with st.expander("📐 Formula & Assumptions"):
-                st.markdown(r"""
+        st.markdown(
+            f"<div style='background:#0d1224;border:1px solid #1e2a4a;"
+            f"border-left:3px solid {signal_color};border-radius:8px;"
+            f"padding:0.9rem 1.2rem;font-size:0.9rem;'>"
+            f"{signal_icon} {signal_text}</div>",
+            unsafe_allow_html=True)
+
+        with st.expander("📐 Formula & Assumptions"):
+            st.markdown(r"""
 **Taylor Series Expansion (2nd order):**
 $$P(S^*) \approx P(S) + \Delta \cdot \Delta S + \frac{1}{2} \Gamma \cdot (\Delta S)^2 + \Theta \cdot \Delta t + \nu \cdot \Delta\sigma$$
 
 | Symbol | Greek | Meaning |
 |--------|-------|---------|
 | Δ | Delta | Rate of change w.r.t. spot |
-| Γ | Gamma | Convexity / 2nd-order spot |
-| Θ | Theta | Time decay (per day) |
+| Γ | Gamma | Convexity / 2nd-order spot sensitivity |
+| Θ | Theta | Time decay (per calendar day) |
 | ν | Vega  | Sensitivity to IV change |
-                """)
+
+**Assumptions:**
+- Greeks are local approximations — accuracy reduces for large spot moves
+- Theta uses calendar days (not trading days)
+- IV change is a user scenario input, not forecasted
+- For very large moves, higher-order terms (Vanna, Volga) improve accuracy
+            """)
+
+        st.markdown(
+            "<div style='font-size:0.7rem;color:#37474f;margin-top:1rem;'>"
+            "Options involve risk. This tool is for educational purposes only. "
+            "Not financial advice.</div>",
+            unsafe_allow_html=True)
