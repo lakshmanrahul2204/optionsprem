@@ -345,28 +345,17 @@ with col_inp:
                     expiry=expiry_date.strftime("%Y-%m-%d"),
                 )
 
-                # ── 2. Fetch spot LTP and option LTP ──────────────────────
+                # ── 2. Fetch spot LTP (index) ─────────────────────────────
                 spot_key = f"{exchange}_{underlying}"
-                opt_key  = f"{exchange}_{trading_symbol}"
 
                 ltp_resp = groww.get_ltp(
                     segment=groww.SEGMENT_CASH,
                     exchange_trading_symbols=spot_key,
                 )
-                opt_ltp_resp = groww.get_ltp(
-                    segment=groww.SEGMENT_FNO,
-                    exchange_trading_symbols=opt_key,
-                )
 
                 # ── 3. Parse and store ────────────────────────────────────
-                st.session_state.greeks_data = {
-                    "delta":              float(greeks_resp.get("delta",              0) or 0),
-                    "gamma":              float(greeks_resp.get("gamma",              0) or 0),
-                    "theta":              float(greeks_resp.get("theta",              0) or 0),
-                    "vega":               float(greeks_resp.get("vega",               0) or 0),
-                    "implied_volatility": float(greeks_resp.get("implied_volatility", 0) or 0),
-                }
-
+                # Option LTP: get_greeks() returns last_price / ltp directly —
+                # no separate FNO get_ltp() call needed (and it causes Bad Request)
                 def extract_ltp(resp, key):
                     """Handle get_ltp() returning either a float or a nested dict."""
                     if resp is None:
@@ -374,15 +363,30 @@ with col_inp:
                     if isinstance(resp, (int, float)):
                         return float(resp)
                     if isinstance(resp, dict):
-                        val = resp.get(key, resp)   # try keyed, fall back to whole dict
+                        val = resp.get(key, resp)
                         if isinstance(val, (int, float)):
                             return float(val)
                         if isinstance(val, dict):
                             return float(val.get("ltp", 0) or 0)
                     return 0.0
 
-                st.session_state.spot_ltp   = extract_ltp(ltp_resp,     spot_key)
-                st.session_state.option_ltp = extract_ltp(opt_ltp_resp,  opt_key)
+                def extract_option_ltp(greeks):
+                    """Pull option LTP from the greeks response — tries common field names."""
+                    for field in ("last_price", "ltp", "close", "last_traded_price"):
+                        val = greeks.get(field)
+                        if val:
+                            return float(val)
+                    return 0.0
+
+                st.session_state.greeks_data = {
+                    "delta":              float(greeks_resp.get("delta",              0) or 0),
+                    "gamma":              float(greeks_resp.get("gamma",              0) or 0),
+                    "theta":              float(greeks_resp.get("theta",              0) or 0),
+                    "vega":               float(greeks_resp.get("vega",               0) or 0),
+                    "implied_volatility": float(greeks_resp.get("implied_volatility", 0) or 0),
+                }
+                st.session_state.spot_ltp   = extract_ltp(ltp_resp, spot_key)
+                st.session_state.option_ltp = extract_option_ltp(greeks_resp)
                 st.session_state.underlying = underlying
                 st.success("✅ Data fetched successfully!")
 
