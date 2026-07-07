@@ -182,8 +182,8 @@ def get_exchange(underlying: str):
 # Month uses first letter of month name. Ambiguous months (J, A, M) are still
 # unique per Groww's own examples so we follow the same mapping.
 _MONTH_LETTER = {
-    1:"1", 2:"2", 3:"3", 4:"4", 5:"5", 6:"6",
-    7:"7", 8:"8", 9:"9", 10:"O", 11:"N", 12:"D"
+    1:"J", 2:"F", 3:"M", 4:"A", 5:"M", 6:"J",
+    7:"J", 8:"A", 9:"S", 10:"O", 11:"N", 12:"D"
 }
 
 def build_trading_symbol(underlying: str, expiry: date,
@@ -344,7 +344,7 @@ with col_inp:
                     trading_symbol=trading_symbol,
                     expiry=expiry_date.strftime("%Y-%m-%d"),
                 )
-                st.write("DEBUG — raw greeks response:", greeks_resp)
+
                 # ── 2. Fetch spot LTP (index) ─────────────────────────────
                 spot_key = f"{exchange}_{underlying}"
 
@@ -354,8 +354,9 @@ with col_inp:
                 )
 
                 # ── 3. Parse and store ────────────────────────────────────
-                # Option LTP: get_greeks() returns last_price / ltp directly —
-                # no separate FNO get_ltp() call needed (and it causes Bad Request)
+                # Response is nested: {"greeks": {"delta": x, "iv": x, ...}}
+                g = greeks_resp.get("greeks", greeks_resp)  # drill into nested key
+
                 def extract_ltp(resp, key):
                     """Handle get_ltp() returning either a float or a nested dict."""
                     if resp is None:
@@ -379,11 +380,11 @@ with col_inp:
                     return 0.0
 
                 st.session_state.greeks_data = {
-                    "delta":              float(greeks_resp.get("delta",              0) or 0),
-                    "gamma":              float(greeks_resp.get("gamma",              0) or 0),
-                    "theta":              float(greeks_resp.get("theta",              0) or 0),
-                    "vega":               float(greeks_resp.get("vega",               0) or 0),
-                    "implied_volatility": float(greeks_resp.get("implied_volatility", 0) or 0),
+                    "delta":              float(g.get("delta", 0) or 0),
+                    "gamma":              float(g.get("gamma", 0) or 0),
+                    "theta":              float(g.get("theta", 0) or 0),
+                    "vega":               float(g.get("vega",  0) or 0),
+                    "implied_volatility": float(g.get("iv",    0) or 0),  # field is "iv"
                 }
                 st.session_state.spot_ltp   = extract_ltp(ltp_resp, spot_key)
                 st.session_state.option_ltp = extract_option_ltp(greeks_resp)
