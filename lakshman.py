@@ -344,7 +344,7 @@ with col_inp:
                     trading_symbol=trading_symbol,
                     expiry=expiry_date.strftime("%Y-%m-%d"),
                 )
-
+                st.write("DEBUG — raw greeks response:", greeks_resp)
                 # ── 2. Fetch spot LTP (index) ─────────────────────────────
                 spot_key = f"{exchange}_{underlying}"
 
