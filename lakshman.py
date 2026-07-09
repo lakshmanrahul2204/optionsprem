@@ -177,21 +177,49 @@ def get_exchange(underlying: str):
     """Return the SDK exchange constant for a given underlying."""
     return "BSE" if underlying in ("SENSEX", "BANKEX") else "NSE"
 
-# Groww get_greeks() trading_symbol format: {UNDERLYING}{YY}{M_letter}{DD}{STRIKE}{TYPE}
-# Confirmed from Groww docs: NIFTY25O1425100CE → Oct 14 2025
-# Month uses first letter of month name. Ambiguous months (J, A, M) are still
-# unique per Groww's own examples so we follow the same mapping.
-_MONTH_LETTER = {
-    1:"J", 2:"F", 3:"M", 4:"A", 5:"M", 6:"J",
-    7:"J", 8:"A", 9:"S", 10:"O", 11:"N", 12:"D"
-}
+# Groww trading symbol formats (confirmed from live instruments):
+#
+# SENSEX / BANKEX (BSE):
+#   {UNDERLYING}{YY}{STRIKE}{TYPE}
+#   e.g. SENSEX2677800CE
+#
+# NIFTY only, Jan–Sep (single digit month, no leading zero):
+#   {UNDERLYING}{YY}{M}{DD}{STRIKE}{TYPE}
+#   e.g. NIFTY2671424500CE  (Jul 14, strike 24500)
+#
+# NIFTY only, Oct–Dec (single letter O/N/D):
+#   {UNDERLYING}{YY}{X}{DD}{STRIKE}{TYPE}
+#   e.g. NIFTY26O1325100CE, NIFTY26N1725100CE, NIFTY26D1525100CE
+#
+# BANKNIFTY / FINNIFTY / MIDCPNIFTY (3-letter month, all months):
+#   {UNDERLYING}{YY}{MMM}{DD}{STRIKE}{TYPE}
+#   e.g. BANKNIFTY25SEP28500CE
+
+_OCT_DEC_LETTER = {10: "O", 11: "N", 12: "D"}
+_BSE_UNDERLYINGS = ("SENSEX", "BANKEX")
+_THREE_LETTER_UNDERLYINGS = ("BANKNIFTY", "FINNIFTY", "MIDCPNIFTY")
 
 def build_trading_symbol(underlying: str, expiry: date,
                           strike: int, opt_type: str) -> str:
-    """Build the Groww options trading symbol e.g. NIFTY25O1425100CE"""
-    yy = expiry.strftime("%y")          # "25"
-    m  = _MONTH_LETTER[expiry.month]    # "O" for October
-    dd = expiry.strftime("%d")          # "14"
+    yy  = expiry.strftime("%y")          # "26"
+    dd  = expiry.strftime("%d")          # "09" (zero-padded day)
+    mmm = expiry.strftime("%b").upper()  # "SEP", "JUL" etc.
+
+    # BSE indices — no month or day
+    if underlying in _BSE_UNDERLYINGS:
+        return f"{underlying}{yy}{int(strike)}{opt_type}"
+
+    # BANKNIFTY, FINNIFTY, MIDCPNIFTY — always 3-letter month
+    if underlying in _THREE_LETTER_UNDERLYINGS:
+        return f"{underlying}{yy}{mmm}{dd}{int(strike)}{opt_type}"
+
+    # NIFTY — Oct/Nov/Dec use single letter
+    if expiry.month >= 10:
+        m = _OCT_DEC_LETTER[expiry.month]
+        return f"{underlying}{yy}{m}{dd}{int(strike)}{opt_type}"
+
+    # NIFTY — Jan–Sep use single digit month
+    m = str(expiry.month)
     return f"{underlying}{yy}{m}{dd}{int(strike)}{opt_type}"
 
 # ─── Session State ────────────────────────────────────────────────────────────
@@ -344,7 +372,7 @@ with col_inp:
                     trading_symbol=trading_symbol,
                     expiry=expiry_date.strftime("%Y-%m-%d"),
                 )
-                st.write("DEBUG — raw greeks response:", greeks_resp)
+
                 # ── 2. Fetch spot LTP (index) ─────────────────────────────
                 spot_key = f"{exchange}_{underlying}"
 
