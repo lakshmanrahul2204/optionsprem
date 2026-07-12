@@ -7,7 +7,7 @@ from growwapi import GrowwAPI
 
 # ─── Page Config ─────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="OptionsPrem | Fair Value Calculator",
+    page_title="OptionsPrem | FVC",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -180,8 +180,9 @@ def get_exchange(underlying: str):
 # Groww trading symbol formats (confirmed from live instruments):
 #
 # SENSEX / BANKEX (BSE):
-#   {UNDERLYING}{YY}{STRIKE}{TYPE}
-#   e.g. SENSEX2677800CE
+#   {UNDERLYING}{YY}{m}{dd}{STRIKE}{TYPE}
+#   e.g. SENSEX267147800CE
+#NEED TO CHECK IF IT IS SAME FROM SENSEX IN OCT-DEC
 #
 # NIFTY only, Jan–Sep (single digit month, no leading zero):
 #   {UNDERLYING}{YY}{M}{DD}{STRIKE}{TYPE}
@@ -267,7 +268,6 @@ if not st.session_state.authenticated:
     st.caption(
         "Get your API Key & Secret from "
         "[groww.in/trade-api/api-keys](https://groww.in/trade-api/api-keys). "
-        "Set up TOTP from the same page."
     )
 
     lc1, lc2 = st.columns(2)
