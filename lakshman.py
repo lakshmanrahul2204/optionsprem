@@ -207,7 +207,7 @@ def build_trading_symbol(underlying: str, expiry: date,
 
     # BSE indices — no month or day
     if underlying in _BSE_UNDERLYINGS:
-        return f"{underlying}{yy}{int(strike)}{opt_type}"
+        return f"{underlying}{yy}{m}{dd}{int(strike)}{opt_type}"
 
     # BANKNIFTY, FINNIFTY, MIDCPNIFTY — always 3-letter month
     if underlying in _THREE_LETTER_UNDERLYINGS:
@@ -337,7 +337,7 @@ with col_inp:
         value=date.today() + timedelta(days=7),
         min_value=date.today(),
     )
-
+#test#
     strike_price = st.number_input("Strike Price", min_value=1, step=50, value=24000)
 
     option_type = st.selectbox("Option Type", ["CE", "PE"])
