@@ -207,6 +207,7 @@ def build_trading_symbol(underlying: str, expiry: date,
 
     # BSE indices — no month or day
     if underlying in _BSE_UNDERLYINGS:
+        m = str(expiry.month)
         return f"{underlying}{yy}{m}{dd}{int(strike)}{opt_type}"
 
     # BANKNIFTY, FINNIFTY, MIDCPNIFTY — always 3-letter month
