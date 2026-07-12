@@ -212,7 +212,7 @@ def build_trading_symbol(underlying: str, expiry: date,
 
     # BANKNIFTY, FINNIFTY, MIDCPNIFTY — always 3-letter month
     if underlying in _THREE_LETTER_UNDERLYINGS:
-        return f"{underlying}{yy}{mmm}{dd}{int(strike)}{opt_type}"
+        return f"{underlying}{yy}{mmm}{int(strike)}{opt_type}"
 
     # NIFTY — Oct/Nov/Dec use single letter
     if expiry.month >= 10:
