@@ -7,7 +7,7 @@ from growwapi import GrowwAPI
 
 # ─── Page Config ─────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="OptionsSense | Fair Value Calculator",
+    page_title="ChinmayKarthik | Fair Value Calculator",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
