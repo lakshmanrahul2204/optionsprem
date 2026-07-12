@@ -339,9 +339,10 @@ with col_inp:
         min_value=date.today(),
     )
 # Default values based of underlying
-    strike_price = st.number_input("Strike Price", min_value=1, step=50, value=24000)
-if underlying in _BSE_UNDERLYINGS:
-    strike_price = st.number_input("Strike Price", min_value=1, step=50, value=77000)
+    if underlying in _BSE_UNDERLYINGS:
+        strike_price = st.number_input("Strike Price", min_value=1, step=100, value=77000)
+    else:
+        strike_price = st.number_input("Strike Price", min_value=1, step=50, value=24000)
 # Cont..    
     option_type = st.selectbox("Option Type", ["CE", "PE"])
 
