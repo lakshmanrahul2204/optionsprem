@@ -7,7 +7,7 @@ from growwapi import GrowwAPI
 
 # ─── Page Config ─────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="ChinmayKarthik | Fair Value Calculator",
+    page_title="OptionsPrem | Fair Value Calculator",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -205,7 +205,7 @@ def build_trading_symbol(underlying: str, expiry: date,
     dd  = expiry.strftime("%d")          # "09" (zero-padded day)
     mmm = expiry.strftime("%b").upper()  # "SEP", "JUL" etc.
 
-    # BSE indices — no month or day
+    # BSE indices — add month and day
     if underlying in _BSE_UNDERLYINGS:
         m = str(expiry.month)
         return f"{underlying}{yy}{m}{dd}{int(strike)}{opt_type}"
@@ -254,7 +254,7 @@ def compute_fair_value(current_premium, delta, gamma, theta, vega,
 st.markdown("""
 <div class='brand-bar'>
     <div>
-        <div class='brand-title'>OptionsSense</div>
+        <div class='brand-title'>OptionsPrem</div>
         <div class='brand-sub'>Fair Value Calculator · Taylor Series · Groww API</div>
     </div>
 </div>
@@ -338,9 +338,11 @@ with col_inp:
         value=date.today() + timedelta(days=7),
         min_value=date.today(),
     )
-#test#
+# Default values based of underlying
     strike_price = st.number_input("Strike Price", min_value=1, step=50, value=24000)
-
+if underlying in _BSE_UNDERLYINGS:
+    strike_price = st.number_input("Strike Price", min_value=1, step=50, value=77000)
+# Cont..    
     option_type = st.selectbox("Option Type", ["CE", "PE"])
 
     # Show the resolved trading symbol so the user can verify it
