@@ -378,36 +378,12 @@ with col_inp:
                 )
 
                 # ── 2. Fetch spot LTP (index) ─────────────────────────────
-                # Groww returns index LTP as a plain float for some key formats.
-                # Try bare underlying name first, then exchange-prefixed, then
-                # fall back to underlying_ltp embedded in the greeks response.
-                spot_ltp = 0.0
-                for ltp_key in (underlying, f"{exchange}_{underlying}"):
-                    try:
-                        ltp_resp = groww.get_ltp(
-                            segment=groww.SEGMENT_FNO,
-                            exchange_trading_symbols=ltp_key,
-                        )
-                        if isinstance(ltp_resp, (int, float)) and ltp_resp:
-                            spot_ltp = float(ltp_resp)
-                            break
-                        if isinstance(ltp_resp, dict):
-                            for k in (ltp_key, underlying, "ltp"):
-                                v = ltp_resp.get(k)
-                                if isinstance(v, (int, float)) and v:
-                                    spot_ltp = float(v)
-                                    break
-                                if isinstance(v, dict):
-                                    spot_ltp = float(v.get("ltp", 0) or 0)
-                                    break
-                            if spot_ltp:
-                                break
-                    except Exception:
-                        continue
+                spot_key = f"{exchange}_{underlying}"
 
-                # Last resort — greeks response sometimes carries underlying_ltp
-                if not spot_ltp:
-                    spot_ltp = float(greeks_resp.get("underlying_ltp", 0) or 0)
+                ltp_resp = groww.get_ltp(
+                    segment=groww.SEGMENT_FNO,
+                    exchange_trading_symbols=spot_key,
+                )
 
                 # ── 3. Parse and store ────────────────────────────────────
                 # Response is nested: {"greeks": {"delta": x, "iv": x, ...}}
@@ -442,7 +418,7 @@ with col_inp:
                     "vega":               float(g.get("vega",  0) or 0),
                     "implied_volatility": float(g.get("iv",    0) or 0),  # field is "iv"
                 }
-                st.session_state.spot_ltp   = spot_ltp
+                st.session_state.spot_ltp   = extract_ltp(ltp_resp, spot_key)
                 st.session_state.option_ltp = extract_option_ltp(greeks_resp)
                 st.session_state.underlying = underlying
                 st.success("✅ Data fetched successfully!")
