@@ -381,7 +381,7 @@ with col_inp:
                 spot_key = f"{exchange}_{underlying}"
 
                 ltp_resp = groww.get_ltp(
-                    segment=groww.SEGMENT_FNO,
+                    segment=groww.SEGMENT_CASH,
                     exchange_trading_symbols=spot_key,
                 )
 
