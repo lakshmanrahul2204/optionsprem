@@ -385,7 +385,7 @@ with col_inp:
                 for ltp_key in (underlying, f"{exchange}_{underlying}"):
                     try:
                         ltp_resp = groww.get_ltp(
-                            segment=groww.SEGMENT_CASH,
+                            segment=groww.SEGMENT_FNO,
                             exchange_trading_symbols=ltp_key,
                         )
                         if isinstance(ltp_resp, (int, float)) and ltp_resp:
