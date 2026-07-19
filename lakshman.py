@@ -364,64 +364,47 @@ with col_inp:
                 groww    = st.session_state.groww
                 exchange = get_exchange(underlying)
 
-                # ── 1. Fetch Greeks for the specific strike via get_greeks() ──
-                # Uses SDK exchange constant: groww.EXCHANGE_NSE / groww.EXCHANGE_BSE
-                exchange_const = (groww.EXCHANGE_BSE
-                                  if underlying in ("SENSEX", "BANKEX")
-                                  else groww.EXCHANGE_NSE)
-
-                greeks_resp = groww.get_greeks(
-                    exchange=exchange_const,
+                # Single call: get_option_chain returns underlying_ltp,
+                # option LTP, and Greeks for every strike in one response
+                chain_resp = groww.get_option_chain(
+                    exchange=exchange,
                     underlying=underlying,
-                    trading_symbol=trading_symbol,
-                    expiry=expiry_date.strftime("%Y-%m-%d"),
+                    expiry_date=expiry_date.strftime("%Y-%m-%d"),
                 )
 
-                # ── 2. Fetch spot LTP (index) ─────────────────────────────
-                spot_key = f"{exchange}_{underlying}"
-
-                ltp_resp = groww.get_ltp(
-                    segment=groww.SEGMENT_CASH,
-                    exchange_trading_symbols=spot_key,
+                # ── Spot LTP — embedded at top level ──────────────────────
+                st.session_state.spot_ltp = float(
+                    chain_resp.get("underlying_ltp", 0) or 0
                 )
 
-                # ── 3. Parse and store ────────────────────────────────────
-                # Response is nested: {"greeks": {"delta": x, "iv": x, ...}}
-                g = greeks_resp.get("greeks", greeks_resp)  # drill into nested key
+                # ── Drill into strikes → selected strike → CE or PE ───────
+                strike_key = str(int(strike_price))
+                strikes    = chain_resp.get("strikes", {})
 
-                def extract_ltp(resp, key):
-                    """Handle get_ltp() returning either a float or a nested dict."""
-                    if resp is None:
-                        return 0.0
-                    if isinstance(resp, (int, float)):
-                        return float(resp)
-                    if isinstance(resp, dict):
-                        val = resp.get(key, resp)
-                        if isinstance(val, (int, float)):
-                            return float(val)
-                        if isinstance(val, dict):
-                            return float(val.get("ltp", 0) or 0)
-                    return 0.0
+                if strike_key not in strikes:
+                    available = sorted(
+                        strikes.keys(),
+                        key=lambda x: abs(int(x) - int(strike_price))
+                    )[:5]
+                    st.error(
+                        f"Strike {strike_key} not found. "
+                        f"Nearest available: {', '.join(available)}"
+                    )
+                else:
+                    leg        = strikes[strike_key].get(option_type, {})
+                    raw_greeks = leg.get("greeks", {})
 
-                def extract_option_ltp(greeks):
-                    """Pull option LTP from the greeks response — tries common field names."""
-                    for field in ("last_price", "ltp", "close", "last_traded_price"):
-                        val = greeks.get(field)
-                        if val:
-                            return float(val)
-                    return 0.0
-
-                st.session_state.greeks_data = {
-                    "delta":              float(g.get("delta", 0) or 0),
-                    "gamma":              float(g.get("gamma", 0) or 0),
-                    "theta":              float(g.get("theta", 0) or 0),
-                    "vega":               float(g.get("vega",  0) or 0),
-                    "implied_volatility": float(g.get("iv",    0) or 0),  # field is "iv"
-                }
-                st.session_state.spot_ltp   = extract_ltp(ltp_resp, spot_key)
-                st.session_state.option_ltp = extract_option_ltp(greeks_resp)
-                st.session_state.underlying = underlying
-                st.success("✅ Data fetched successfully!")
+                    st.session_state.greeks_data = {
+                        "delta":              float(raw_greeks.get("delta", 0) or 0),
+                        "gamma":              float(raw_greeks.get("gamma", 0) or 0),
+                        "theta":              float(raw_greeks.get("theta", 0) or 0),
+                        "vega":               float(raw_greeks.get("vega",  0) or 0),
+                        "implied_volatility": float(raw_greeks.get("iv",    0) or 0),
+                    }
+                    # Option LTP lives on the leg directly, not inside greeks
+                    st.session_state.option_ltp = float(leg.get("ltp", 0) or 0)
+                    st.session_state.underlying = underlying
+                    st.success("✅ Data fetched successfully!")
 
             except Exception as e:
                 st.error(f"Error: {e}")
